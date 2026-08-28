@@ -4,8 +4,8 @@
 ![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)
 ![Dependencies: none](https://img.shields.io/badge/Dependencies-none-brightgreen.svg)
 
-A hook for Claude Code that tells you what a reply cost, and when you are paying
-Opus prices for Haiku work.
+A hook for Claude Code that tells you when you are spending Opus on Haiku work,
+and what each reply took out of your usage limit.
 
 It stays quiet the rest of the time. That is most of the time, and it is the
 point.
@@ -23,21 +23,56 @@ point.
 
 ---
 
-## Why this exists
+## The gap it fills
 
-Claude Code shows you a running total. A total is not a decision.
+You pick a model at the start of a session. Then you use it for everything,
+because switching is friction and nothing ever reminds you.
 
-Knowing you have spent $40 today tells you nothing about whether that was
-reasonable. The number you actually need is the one you never see: **was the
-model I used the right size for the thing I asked?** A refactor across nine
-files earns Opus. "What does this error mean" does not, and costs five times
-more than it should when Opus answers it.
+So Opus answers "what does this error mean." It answers it well, and it costs
+roughly five times what Haiku would have. Nothing tells you this happened. You
+find out when you hit your limit at 3pm on a Tuesday and cannot work.
 
-This hook answers that question, and only that question. It reads what you asked,
-classifies the shape of the work, compares it to the model actually running, and
-speaks when those two disagree.
+**The missing feedback is not the total. It is the fit.**
 
-Then it goes quiet again.
+| You can already see | You cannot see |
+|---|---|
+| That you have used a lot today | Whether any single reply deserved the model that gave it |
+| That your limit is running low | Which habit is draining it |
+| Which model is selected | Whether it still suits what you are now doing |
+
+A total tells you the tank is emptying. It never tells you the engine is oversized
+for the trip.
+
+## What you get
+
+**You stop paying Opus prices out of habit.** The hook reads what you asked,
+sizes the work, compares it to the model actually running, and says something
+only when those two disagree.
+
+**Your limit lasts longer.** Same work, cheaper model, on the tasks where the
+cheaper model was always going to be enough.
+
+**You learn where it goes.** After a few days you can see which kinds of request
+actually cost you something. Most people are surprised. It is rarely the hard
+work; it is the long thread of small questions.
+
+**It costs you nothing to keep on.** No cards on a normal turn. Silence is the
+default state, not a failure.
+
+---
+
+## A note on the dollar figures
+
+**Anthropic is not billing you these amounts.**
+
+On a Claude Pro or Max subscription you pay a flat monthly fee. The dollars here
+are the equivalent API list price of the tokens you just used: a way to measure
+*how fast you are spending your usage limit*, in units that mean something.
+
+"$0.14 this reply" means that reply consumed roughly fourteen cents worth of your
+allowance. Not a charge. A speedometer, not a bill.
+
+If you do use the API directly, the same numbers are your actual spend.
 
 ---
 
@@ -56,9 +91,18 @@ same failure as a warning that never fires at all.
 
 ---
 
+## Where it runs
+
+Claude Code, both the desktop app and the `claude` terminal CLI. They share one
+config directory, so installing once covers both.
+
+Not for the Anthropic API, and not for claude.ai — neither runs hooks.
+
+Requires Python 3.8+. macOS and Linux; on Windows, WSL.
+
 ## Install
 
-Requires Python 3.8+ and Claude Code. No dependencies, nothing to configure.
+No dependencies, nothing to configure.
 
 ```bash
 git clone https://github.com/berto-play/claude-cost-fit-hook.git
@@ -122,8 +166,12 @@ That last row is the common case.
 
 ## Prices
 
-The rates live in one table at the top of `hooks/cost-and-fit.py`. Anthropic
-changes prices; this file will eventually be wrong. Edit that table when it is.
+The rates live in one table at the top of `hooks/cost-and-fit.py`. They are
+Anthropic's published API list prices, used here as a yardstick — see the note
+above on what the dollar figures mean.
+
+Anthropic changes prices, so this table will eventually be wrong. Edit it when
+it is; it is a dozen lines.
 
 An unknown model produces no dollar figure at all, rather than a guessed one.
 
