@@ -1,6 +1,6 @@
 # Cost & Fit
 
-A behavior cue for Claude Code that helps you notice when the active model no longer fits the work.
+A hook for Claude Code that tells you when the model you're running no longer fits the work you're doing.
 
 A session can start with a difficult problem that needs Opus. Later, the work may become simple, but Opus is still running. Cost & Fit looks for that mismatch and shows a short warning with a copyable command when switching models may help.
 
@@ -24,7 +24,7 @@ The hook never changes the model for you. It gives you information and leaves th
 2. **Behavior is the intervention:** "This work fits Sonnet. Switch with this command."
 3. **Savings are the possible result, not the product's guaranteed output.**
 
-For included subscriber usage, the displayed amount is not a charge for each reply. The value is preserving usage capacity and reducing the chance of reaching a limit early.
+On a Pro or Max subscription, the displayed amount is not a charge. It shows how much of your usage allowance a reply consumed, so the limit arrives later, not sooner.
 
 For API users, the same feedback can help identify avoidable usage and potential cost reduction. The amount shown is an estimate, not a promise of exact savings.
 
@@ -44,9 +44,7 @@ Requires Python 3.8+ and macOS or Linux.
 
 ### Switch when the work changes
 
-You may start with Opus because the problem is difficult. Later, you may only be fixing a small error, but the session is still running on Opus.
-
-Cost & Fit compares the current request with the active model. When the model may be too expensive for the task, it shows a one-line warning and a copyable `/model` command.
+Cost & Fit compares each request with the model that's running. When the model is oversized for the task, it shows a one-line warning with a copyable `/model` command.
 
 ### See the cost while you work
 
@@ -80,8 +78,7 @@ Starting with Sonnet gives the hook room to suggest Opus when the work becomes m
 |---|---|---|
 | API user | Switch away from an expensive model when simpler work begins | You may reduce avoidable spend |
 | Pro or Max subscriber | Avoid unnecessary use of limited usage capacity | Your allowance may last longer |
-| Long-session user | Notice when the thread itself is becoming expensive | You know when `/clear` may help more than switching models |
-| Claude Code user | Turn a cost signal into a clear next action | Awareness becomes behavior |
+| Long-session user | Notice when the thread itself is becoming expensive | You know when `/clear` helps more than switching models |
 
 ## What it does not do
 
