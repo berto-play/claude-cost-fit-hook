@@ -461,7 +461,8 @@ DECLINE = re.compile(r"\b(no|don'?t|leave it|stay|keep .*(model|it)|not now|"
 # ── the two triggers ─────────────────────────────────────────────────────────
 def on_prompt(inp):
     sid = inp.get("session_id", "")
-    prompt = (inp.get("prompt") or "").strip()
+    raw_prompt = inp.get("prompt")
+    prompt = raw_prompt.strip() if isinstance(raw_prompt, str) else ""
     st = load(sid)
 
     # A decline is a decision, not a pause. CMFA-01.7.
