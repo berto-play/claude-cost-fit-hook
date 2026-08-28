@@ -18,7 +18,7 @@ I built it because I kept finding Opus answering my rename-this-variable questio
 
 The hook never changes the model for you. It gives you information and leaves the decision with you.
 
-## The key distinction
+## What it gives you, and what it doesn't
 
 1. **Awareness is the information:** "This reply cost approximately this much."
 2. **Behavior is the intervention:** "This work fits Sonnet. Switch with this command."
