@@ -1,13 +1,8 @@
 # Cost & Fit
 
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)
-![Dependencies: none](https://img.shields.io/badge/Dependencies-none-brightgreen.svg)
-
-A hook for Claude Code that tells you when you are spending Opus on Haiku work,
-and what each reply took out of your usage limit.
-
-Silent the rest of the time. Which is most of the time.
+A hook for Claude Code that reports what each reply costs and flags when the
+model you are running is oversized for the work you are doing. It stays silent
+unless it has something worth saying.
 
 ```
 💰 COST & FIT
@@ -20,111 +15,63 @@ Silent the rest of the time. Which is most of the time.
    ✅ $0.14 this reply · $2.61 this thread · Sonnet, and it needed to be.
 ```
 
----
-
 ## The problem
 
-**You pick a model once. Your work changes twenty times.**
+You pick a model once; your work changes throughout the session. Sessions tend
+to start with a hard problem, where a large model is the right call, and then
+drift toward smaller tasks — writing a test, renaming a variable, asking what an
+error means. Nothing marks that transition, so the expensive model keeps
+answering questions a cheaper one would have handled at a fraction of the price.
+Eventually you forget which model is selected at all.
 
-Sessions start hard. You reach for Opus because the first thing is genuinely
-difficult. Correct choice.
+Claude Code shows overall usage and progress toward your limit. What it does not
+show is whether any individual reply deserved the model that produced it, or
+what a single reply costs as the conversation grows. API users get per-call
+pricing and can build tooling around it; subscription users have no per-reply
+signal. This hook provides one.
 
-Then the session drifts:
+## Who it is for
 
-```
-  architecture  →  write a test  →  rename this
-  ────────────────────────────────────────────────
-  Opus             Opus             Opus
-  right            fine             five times the price
-```
-
-Nothing marks that boundary. So Opus answers "what does this error mean," and
-answers it beautifully, at five times what Haiku would have cost.
-
-Then you forget the model is set at all. That one lasts for days.
-
----
-
-## The gap
-
-Claude Code already shows your usage and how much of the limit is left. That is
-a fuel gauge, and it is useful.
-
-It never tells you the engine is oversized for the trip.
-
-| Already visible | Still invisible |
-|---|---|
-| How much of your limit is gone | Whether a reply deserved its model |
-| That you are running low | Which habit is draining it |
-| Which model is selected | Whether it still fits what you are doing now |
-
-API users solved this years ago — every call returns a price. On a subscription
-there is no per-call signal at all.
-
-**I could not find a tool that closed that gap, so I built one.**
-
----
+Anyone using Claude Code — the desktop app or the `claude` terminal CLI — on a
+Pro or Max subscription who wants their usage limit to last longer, or API users
+who want per-reply cost feedback inside the tool rather than in a dashboard.
 
 ## What it does
 
-**Sizes what you asked.** Not the topic, the shape. Compares it to the model
-actually running. Speaks only when those disagree.
+- **Sizes each request.** It classifies the shape of what you asked (mechanical,
+  standard, or complex) and compares that to the model actually running. When
+  they disagree, it prints one line with the `/model` command to switch.
+- **Prices each reply and the running thread.** Figures come from the token
+  counts in the session transcript Claude Code writes itself. Nothing is
+  estimated.
+- **Detects when the conversation itself becomes the cost.** Long threads are
+  re-read on every turn, and that re-reading is billed. When it dominates the
+  session's spend, the hook suggests `/clear` instead of a model change, because
+  no model change fixes it.
+- **Stays quiet otherwise.** It repeats nothing, and a declined suggestion is
+  not raised again for the rest of the session.
 
-**Prices each reply, and the thread.** From the real token counts Claude Code
-records, never an estimate.
+The hook never changes your model and never blocks your work. It suggests; you
+decide.
 
-**Watches long threads get expensive.** They cost more than the work in them,
-for a reason that is not obvious, and no model choice fixes it. The hook is the
-thing that tells you when that has taken over.
+### About the dollar figures
 
-**Says nothing the rest of the time.**
+On a subscription, Anthropic does not bill you these amounts. The figures are
+the equivalent API list price of the tokens used — a consistent unit for
+measuring how quickly you are consuming your usage limit. For direct API users,
+they correspond to actual spend.
 
----
+If a model is not in the price table, or any component of a figure cannot be
+measured, the hook prints nothing rather than an estimate.
 
-## About the dollar figures
+## Requirements
 
-**Anthropic is not billing you these amounts.**
+- Claude Code (desktop app or CLI). The hook does not work with the Anthropic
+  API directly or with claude.ai, since neither runs hooks.
+- Python 3.8 or later. No third-party dependencies.
+- macOS or Linux. On Windows, use WSL.
 
-On a subscription you pay a flat fee. The dollars are the equivalent API price of
-the tokens you just used — a way to measure how fast your limit is draining, in
-units that mean something.
-
-**A speedometer, not a bill.** If you use the API directly, they are your actual
-spend.
-
----
-
-## Can you trust the numbers
-
-Three rules, and the hook holds all three:
-
-**It reads, never estimates.** Every count comes from the session log Claude Code
-writes itself.
-
-**It refuses to guess.** Unknown model, missing piece, anything uncertain — no
-figure at all. A wrong number said confidently is worse than no number, because
-it gets believed.
-
-**It never acts on its own.** It suggests. You decide. Your work never waits, it
-says a thing once, and a no is permanent for that session.
-
-The classifier reads your prompt with a heuristic, not a model. It will sometimes
-be wrong, so it is tuned toward silence: a wrong nudge costs trust every time, a
-missed one costs a few cents once.
-
----
-
-## Where it runs
-
-Claude Code — desktop app and the `claude` terminal CLI. One install covers both.
-
-Not the API, not claude.ai. Neither runs hooks.
-
-Python 3.8+. macOS and Linux; on Windows, WSL.
-
----
-
-## Install
+## Installation
 
 ```bash
 git clone https://github.com/berto-play/claude-cost-fit-hook.git
@@ -132,74 +79,85 @@ cd claude-cost-fit-hook
 python3 install.py install
 ```
 
-Quit Claude Code completely and reopen it.
+Quit Claude Code completely and reopen it. The installer optionally asks what
+name the hook should use when addressing you; press Enter to skip, or pass
+`--no-name`.
 
-```bash
-python3 install.py stop         # pause, stay installed
-python3 install.py start        # resume
-python3 install.py uninstall    # remove completely
-python3 install.py status       # which of those am I?
-python3 install.py model        # set which model sessions start on
-```
-
-**Stop is not uninstall.** Everything stays in place; it just goes quiet. Every
-command is safe to run twice.
-
-### Where you start matters
-
-`install.py model sonnet` sets the model every session begins on.
-
-This is the other half of the problem. The hook tells you when a session has
-drifted, but if you always start on Opus, you start every day already drifting.
-Begin on Sonnet and the nudge fires when the work gets *harder* — the direction
-worth being interrupted in.
-
-The installer offers this once. Change it any time.
-
-### What it touches
+The installer touches three files:
 
 | File | Change |
 |---|---|
-| `~/.claude/hooks/cost-and-fit.py` | The hook |
-| `~/.claude/settings.json` | Two entries |
-| `~/.claude/CLAUDE.md` | One line, only if you gave a name |
+| `~/.claude/hooks/cost-and-fit.py` | The hook itself, copied here |
+| `~/.claude/settings.json` | Two hook entries: `UserPromptSubmit` and `Stop` |
+| `~/.claude/CLAUDE.md` | One line, only if you provided a name |
 
-**No network calls.** Everything comes from files already on your machine.
-Uninstall restores `settings.json` exactly.
+The hook makes no network calls. Everything it reads is already on your
+machine. If `CLAUDE_CONFIG_DIR` is set, all paths follow it.
 
----
+## Usage
 
-## When it speaks
+Once installed, there is nothing to run. Cards appear in your Claude Code
+conversations when a reply was expensive enough to mention or the model does
+not fit the task. Most turns produce nothing; that is the intended behavior.
 
-| Trigger | What you get |
-|---|---|
-| Model does not fit the task | One line, and the command to switch |
-| A reply cost real money | That reply, and the thread so far |
-| The thread itself became the cost | A nudge to `/clear` |
-| You ask how pricing works | A plain answer, on request only |
-| Everything is fine | Nothing |
+### Commands
 
-**That last row is the common case.** A warning that fires every turn stops being
-read by the fourth one.
+```bash
+python3 install.py status       # installed, paused, or not installed
+python3 install.py stop         # pause without uninstalling
+python3 install.py start        # resume after a stop
+python3 install.py model        # set which model sessions start on
+python3 install.py uninstall    # remove the hook and its settings entries
+```
 
----
+`stop` writes a single flag file and touches nothing else; the hook checks it
+first and exits silently. `uninstall` removes the hook and restores
+`settings.json` to exactly what it had before, leaving unrelated settings
+untouched. Every command is safe to run more than once.
 
-## Forking it
+### Setting a default model
 
-One file, heavily commented — the comments explain *why*, not what.
-`docs/how-it-works.md` has the reasoning behind the design.
+```bash
+python3 install.py model sonnet
+```
 
-Start with `RATES` for prices and `shape_of()` for how requests are sized.
+Sets the model Claude Code starts each session on (`sonnet`, `haiku`, or
+`opus`; run it bare for an interactive menu). Starting on a mid-tier model
+means the hook's nudges fire when work gets harder rather than every time it
+gets easier. The installer offers this once at the end of installation.
+
+## Project structure
+
+```
+claude-cost-fit-hook/
+├── install.py            installer and command-line interface
+├── hooks/
+│   └── cost-and-fit.py   the hook; single file, no dependencies
+├── docs/
+│   └── how-it-works.md   design notes: measurement rules, why it stays quiet
+├── LICENSE               MIT
+└── README.md
+```
+
+The hook is deliberately one file so it can be audited in a single sitting.
+Comments explain why decisions were made rather than what each line does. The
+`CMFA-01.x` tags in comments reference the internal rule set the hook was
+originally written against; treat them as design notes.
+
+Model prices live in the `RATES` table at the top of `hooks/cost-and-fit.py`.
+Anthropic changes prices over time, so the table will eventually go stale; it
+is a dozen lines to update. Request classification lives in `shape_of()`.
 
 ## Contributing
 
-**Prices go stale.** If `RATES` is wrong, that is a real bug and a one-line fix.
-Please open an issue.
+Issues and pull requests are welcome.
 
-**Silence is the design.** Changes that make it speak more often need to argue
-for themselves. The bar is not "this is true," it is "this is worth interrupting
-someone for."
+- **Stale prices are bugs.** If the `RATES` table no longer matches Anthropic's
+  published pricing, please open an issue.
+- **Silence is a design constraint.** Changes that make the hook speak more
+  often need a strong argument. The bar is not whether the information is true,
+  but whether it is worth interrupting someone for.
 
----
+## License
 
-MIT. Do what you like with it.
+MIT. See [LICENSE](LICENSE).
