@@ -1,5 +1,9 @@
 # Cost & Fit
 
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)
+![Dependencies: none](https://img.shields.io/badge/Dependencies-none-brightgreen.svg)
+
 A hook for Claude Code that tells you what a reply cost, and when you are paying
 Opus prices for Haiku work.
 
@@ -57,7 +61,7 @@ same failure as a warning that never fires at all.
 Requires Python 3.8+ and Claude Code. No dependencies, nothing to configure.
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/claude-cost-fit-hook.git
+git clone https://github.com/berto-play/claude-cost-fit-hook.git
 cd claude-cost-fit-hook
 python3 install.py
 ```
@@ -137,6 +141,20 @@ Classification is a heuristic over the text of your prompt. It will sometimes
 call a hard question easy. It is a nudge, not an oracle, and it is deliberately
 biased toward silence: a wrong nudge costs more trust than a missed one saves
 money.
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome. Two things worth knowing before you open
+one:
+
+**Prices go stale.** If the `RATES` table is wrong, that is a real bug and a
+one-line fix. Please do open an issue.
+
+**Silence is the design.** Changes that make the hook speak more often need to
+argue for themselves. The bar is not "this information is true", it is "this is
+worth interrupting someone for."
 
 ---
 
