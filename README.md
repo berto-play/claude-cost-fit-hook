@@ -23,23 +23,25 @@ Quit Claude Code completely and reopen it. Python 3.8+, macOS or Linux.
 
 ## The problems it solves
 
-**You start hard and drift easy, and the model never follows.** Sessions open
-with a real problem, so you pick Opus, and you're right to. An hour later Opus
-is explaining error messages at five times Haiku's price, and no boundary was
-ever marked. The hook says one line when the model doesn't fit the task.
+**The model you need changes. Yours doesn't.** You start a session with a hard
+problem. You pick Opus. Good call. An hour later, Opus is explaining a simple
+error message, at five times Haiku's price. Nobody told you to switch. The hook
+does: one line, only when the model stops fitting the task.
 
-**You have a fuel gauge but no speedometer.** Claude Code shows how much limit
-is gone. It never shows what one reply consumed, or whether it was worth it.
-The hook prices each reply from Claude Code's own token counts.
+**Claude Code shows a fuel gauge. Not a speedometer.** It tells you how much
+of your limit is left. It never tells you what one reply just cost, or if that
+reply was worth it. The hook prices every reply, using Claude Code's own token
+counts.
 
-**Long threads quietly become the cost.** Claude re-reads the whole
-conversation every turn, and that re-reading is billed. Past a point the
-thread costs more than the work in it, and no model change fixes that. When
-re-reading dominates, the hook tells you to `/clear` instead.
+**Long conversations get expensive on their own.** Claude re-reads the whole
+thread every single turn. That re-reading costs money. Past a point, the
+thread costs more than the actual work. No model switch fixes this. The hook
+notices, and tells you to run `/clear` instead.
 
-**You start every day on yesterday's model.** The hook catches drift inside a
-session; `python3 install.py model sonnet` sets where sessions begin. Start
-mid-tier and the nudge fires when work gets harder.
+**Every session starts on whatever model you used last.** The hook only
+catches drift once a session is running. `python3 install.py model sonnet`
+fixes the starting point. Start on a mid-tier model, and the hook only speaks
+up when the work gets harder, not easier.
 
 ## Commands
 
