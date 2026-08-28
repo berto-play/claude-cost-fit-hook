@@ -63,22 +63,31 @@ Requires Python 3.8+ and Claude Code. No dependencies, nothing to configure.
 ```bash
 git clone https://github.com/berto-play/claude-cost-fit-hook.git
 cd claude-cost-fit-hook
-python3 install.py
+python3 install.py install
 ```
 
 Then quit Claude Code completely and reopen it.
 
 The installer asks what to call you. Press Enter to skip; the hook works
-identically either way.
+identically either way, or use `--no-name` to skip the question outright.
 
-To remove it:
+## Commands
 
 ```bash
-python3 install.py --uninstall
+python3 install.py install      # set it up
+python3 install.py stop         # pause it, keep it installed
+python3 install.py start        # resume
+python3 install.py uninstall    # remove it completely
+python3 install.py status       # which of those am I?
 ```
 
-Both commands are safe to run twice. Install replaces its own entries rather
-than stacking them, and uninstall leaves every other setting exactly as it was.
+**Stop is not uninstall.** Stop writes a single flag file that the hook checks
+before doing anything else. Everything stays in place; it just says nothing.
+Use it when you want quiet for an afternoon without reinstalling afterwards.
+
+Every command is safe to run twice. Install replaces its own settings entries
+rather than stacking them, and uninstall leaves every other setting exactly as
+it was.
 
 ---
 
@@ -135,7 +144,7 @@ deliberate. Ignore them, or read them as design notes.
 
 ---
 
-## Prior art, and the honest limitation
+## The honest limitation
 
 Classification is a heuristic over the text of your prompt. It will sometimes
 call a hard question easy. It is a nudge, not an oracle, and it is deliberately

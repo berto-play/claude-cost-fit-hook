@@ -124,8 +124,6 @@ def _state_file():
 
 
 STATE = _state_file()
-_LEGACY_STATE = os.path.expanduser(
-    "~/.claude/hooks/cc-root-hooks/.cost-and-fit-state.json")
 
 
 # ── shape classification (CMFA-01.3: route by shape, never topic) ────────────
@@ -326,18 +324,14 @@ def find_transcript(inp):
 
 # ── state: what we already said, and what was declined ───────────────────────
 def load(sid):
-    # Read the old in-folder location once, so a session already running keeps
-    # its decline-memory and rotation across the move. The next save writes to
-    # the new path; the legacy file is left alone.
-    for path in (STATE, _LEGACY_STATE):
-        try:
-            with open(path) as f:
-                d = json.load(f) or {}
-            if sid in d:
-                return d[sid]
-        except Exception:
-            continue
-    return {}
+    # A missing or unreadable state file means "nothing said yet", never an
+    # error: the hook must never break a session over its own bookkeeping.
+    try:
+        with open(STATE) as f:
+            d = json.load(f) or {}
+        return d.get(sid, {})
+    except Exception:
+        return {}
 
 
 def save(sid, patch):
@@ -623,7 +617,19 @@ def on_stop(inp):
     sys.exit(0)
 
 
+def _paused():
+    """`install.py stop` writes this file. Checked before anything else so a
+    pause costs nothing and cannot fail: no transcript is read, no state is
+    written, and an unreadable flag simply means not paused."""
+    try:
+        return os.path.exists(os.path.join(os.path.dirname(STATE), "paused"))
+    except Exception:
+        return False
+
+
 def main():
+    if _paused():
+        sys.exit(0)
     try:
         raw = sys.stdin.read()
         inp = json.loads(raw) if raw.strip() else {}
