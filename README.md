@@ -139,10 +139,22 @@ python3 install.py stop         # pause, stay installed
 python3 install.py start        # resume
 python3 install.py uninstall    # remove completely
 python3 install.py status       # which of those am I?
+python3 install.py model        # set which model sessions start on
 ```
 
 **Stop is not uninstall.** Everything stays in place; it just goes quiet. Every
 command is safe to run twice.
+
+### Where you start matters
+
+`install.py model sonnet` sets the model every session begins on.
+
+This is the other half of the problem. The hook tells you when a session has
+drifted, but if you always start on Opus, you start every day already drifting.
+Begin on Sonnet and the nudge fires when the work gets *harder* — the direction
+worth being interrupted in.
+
+The installer offers this once. Change it any time.
 
 ### What it touches
 

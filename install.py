@@ -10,6 +10,7 @@ its own entries and never duplicates them.
     python3 install.py start        resume it after a stop
     python3 install.py uninstall    remove it completely
     python3 install.py status       say which of those it currently is
+    python3 install.py model        set the model Claude Code starts on
 
 `install` is the default, so bare `python3 install.py` still works. Add
 --no-name to skip the name question.
@@ -170,6 +171,69 @@ def cmd_status(cfg, settings_path):
     return 0
 
 
+MODELS = [
+    ("sonnet", "claude-sonnet-5", "Balanced. The right default for most people."),
+    ("haiku", "claude-haiku-4-5-20251001", "Fast and cheap. Simple, mechanical work."),
+    ("opus", "claude-opus-5", "Strongest, priciest. Hard problems only."),
+]
+
+
+def cmd_model(settings_path, preset=None):
+    """Set the model Claude Code starts every session on.
+
+    This is the other half of the problem: the hook can tell you a session has
+    drifted, but if you always begin on Opus you will keep having the same
+    conversation. Starting lower means the nudge fires when work gets harder,
+    which is the direction worth being interrupted in.
+    """
+    settings = load_settings(settings_path)
+    current = settings.get("model")
+
+    if preset is None:
+        if not sys.stdin.isatty():
+            print("\n  Usage: python3 install.py model <sonnet|haiku|opus>\n")
+            return 1
+        print()
+        print(f"  Claude Code currently starts on:  {current or 'no default set'}")
+        print()
+        for i, (short, _, why) in enumerate(MODELS, 1):
+            print(f"    {i}. {short:<7} {why}")
+        print()
+        print("  Enter to leave it unchanged.")
+        try:
+            choice = input("  Choose 1-3: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+        if not choice:
+            print("\n  Unchanged.\n")
+            return 0
+        by_name = {s: (s, mid, w) for s, mid, w in MODELS}
+        if choice in by_name:
+            preset = choice
+        elif choice.isdigit() and 1 <= int(choice) <= len(MODELS):
+            preset = MODELS[int(choice) - 1][0]
+        else:
+            print(f"\n  Not one of the options: {choice}\n")
+            return 1
+
+    match = next((m for m in MODELS if m[0] == preset.lower()), None)
+    if not match:
+        names = " · ".join(m[0] for m in MODELS)
+        print(f"\n  Unknown model: {preset}\n  Choose one of: {names}\n")
+        return 1
+
+    short, model_id, _ = match
+    settings["model"] = model_id
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+
+    print(f"\n  Claude Code will now start on {short}  ({model_id})")
+    print("  Restart Claude Code for it to take effect.")
+    print("  Switch mid-session any time with  /model <name>\n")
+    return 0
+
+
 def cmd_uninstall(cfg, settings_path, dest, command):
     settings = load_settings(settings_path)
     unregister(settings, command)
@@ -199,9 +263,9 @@ def main():
     dest = cfg / "hooks" / HOOK_NAME
     command = f"python3 {dest}"
 
-    if cmd not in ("install", "stop", "start", "uninstall", "status"):
+    if cmd not in ("install", "stop", "start", "uninstall", "status", "model"):
         print(f"\n  Unknown command: {cmd}")
-        print("  Use: install · stop · start · uninstall · status\n")
+        print("  Use: install · stop · start · uninstall · status · model\n")
         return 1
 
     if cmd == "stop":
@@ -210,6 +274,8 @@ def main():
         return cmd_start(cfg)
     if cmd == "status":
         return cmd_status(cfg, settings_path)
+    if cmd == "model":
+        return cmd_model(settings_path, words[1] if len(words) > 1 else None)
     if cmd == "uninstall":
         return cmd_uninstall(cfg, settings_path, dest, command)
 
@@ -248,7 +314,24 @@ def main():
     print("  mentioning, or the model does not fit the task. That silence is the")
     print("  feature.")
     print()
-    print("  stop · start · uninstall · status  →  python3 install.py <command>")
+    print("  stop · start · uninstall · status · model  →  python3 install.py <command>")
+
+    # Offered here rather than buried in the docs: the hook nudges you when a
+    # session drifts, but a high default means that drift starts every day.
+    current = load_settings(settings_path).get("model")
+    if sys.stdin.isatty() and current != "claude-sonnet-5":
+        shown = current or "whatever Claude Code picks"
+        print()
+        print(f"  One more thing. Sessions currently start on: {shown}")
+        print("  Starting on sonnet means the nudge fires when work gets harder,")
+        print("  rather than every time it gets easier.")
+        try:
+            if input("  Set the default to sonnet? [y/N]: ").strip().lower() in ("y", "yes"):
+                cmd_model(settings_path, "sonnet")
+                return 0
+        except (EOFError, KeyboardInterrupt):
+            pass
+
     print()
     return 0
 
