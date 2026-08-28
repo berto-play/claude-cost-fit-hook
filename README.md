@@ -23,41 +23,79 @@ point.
 
 ---
 
-## The gap it fills
+## The problem
 
-You pick a model at the start of a session. Then you use it for everything,
-because switching is friction and nothing ever reminds you.
+**You pick a model once. Your work changes twenty times.**
 
-So Opus answers "what does this error mean." It answers it well, and it costs
-roughly five times what Haiku would have. Nothing tells you this happened. You
-find out when you hit your limit at 3pm on a Tuesday and cannot work.
+A session usually starts hard. You reach for Opus because the first thing is
+genuinely difficult — an architecture question, a nasty bug, a decision with
+trade-offs. Correct choice.
 
-**The missing feedback is not the total. It is the fit.**
+Then the session drifts, the way sessions do:
 
-| You can already see | You cannot see |
+```
+  hard          →  medium        →  easy
+  architecture     write a test     rename this
+  ─────────────────────────────────────────────
+  Opus             Opus             Opus
+  right            fine             five times the price
+```
+
+Nothing marks that boundary. There is no moment where something says *the hard
+part is over.* So Opus answers "what does this error mean," and answers it
+beautifully, and costs roughly five times what Haiku would have.
+
+Then you forget the model is even set. That is the second failure, and it is
+worse, because it lasts for days.
+
+---
+
+## The gap
+
+If you use the **API**, cost is a solved problem. Every call returns a token
+count and a price. Dashboards, budgets, alerts — the whole industry has tooling
+for it.
+
+If you use **Claude Code on a subscription**, you get a fixed monthly fee and a
+usage limit, and the app already shows you a running total and progress toward
+that limit. That is real, and it is useful.
+
+But a total answers *how much is left.* It never answers the question that
+actually changes what you do next:
+
+> **Was the model that just answered me the right size for what I asked?**
+
+| Already visible | Still invisible |
 |---|---|
-| That you have used a lot today | Whether any single reply deserved the model that gave it |
-| That your limit is running low | Which habit is draining it |
-| Which model is selected | Whether it still suits what you are now doing |
+| How much of your limit is gone | Whether any single reply deserved its model |
+| That you are running low | Which habit is draining it |
+| Which model is selected | Whether it still fits what you are now doing |
+| — | What one reply costs as the thread grows dense |
 
-A total tells you the tank is emptying. It never tells you the engine is oversized
-for the trip.
+A fuel gauge tells you the tank is emptying. It never tells you the engine is
+oversized for the trip.
 
-## What you get
+**I could not find a tool that closed that gap, so I built one.**
 
-**You stop paying Opus prices out of habit.** The hook reads what you asked,
-sizes the work, compares it to the model actually running, and says something
-only when those two disagree.
+---
 
-**Your limit lasts longer.** Same work, cheaper model, on the tasks where the
-cheaper model was always going to be enough.
+## What it does
 
-**You learn where it goes.** After a few days you can see which kinds of request
-actually cost you something. Most people are surprised. It is rarely the hard
-work; it is the long thread of small questions.
+**1 · Watches the shape of each request.**
+Not the topic — the shape. "Rename this variable" and "rename this database
+column" are the same size of job. It sizes what you asked, compares it to the
+model actually running, and speaks only when those two disagree.
 
-**It costs you nothing to keep on.** No cards on a normal turn. Silence is the
-default state, not a failure.
+**2 · Prices every reply, and the thread.**
+One number for the reply you just got, one for the conversation so far. Both
+from real token counts, never an estimate.
+
+**3 · Watches the context window get expensive.**
+Long threads cost more for a reason that is not obvious, and the hook is the
+only thing that will tell you when that has taken over. (Explained below.)
+
+**4 · Says nothing the rest of the time.**
+Which is most turns. That silence is the feature, not a bug.
 
 ---
 
@@ -65,40 +103,116 @@ default state, not a failure.
 
 **Anthropic is not billing you these amounts.**
 
-On a Claude Pro or Max subscription you pay a flat monthly fee. The dollars here
-are the equivalent API list price of the tokens you just used: a way to measure
-*how fast you are spending your usage limit*, in units that mean something.
+On a Pro or Max subscription you pay a flat monthly fee. The dollars here are the
+equivalent API list price of the tokens you just used — a way to measure *how
+fast you are spending your usage limit*, in units that mean something.
 
-"$0.14 this reply" means that reply consumed roughly fourteen cents worth of your
-allowance. Not a charge. A speedometer, not a bill.
+`$0.14 this reply` means that reply consumed about fourteen cents worth of your
+allowance. Not a charge. **A speedometer, not a bill.**
 
-If you do use the API directly, the same numbers are your actual spend.
+If you use the API directly, the same numbers are your actual spend.
 
 ---
 
-## What it will not do
+## How the math works
 
-It **never changes your model.** It says what it thinks and gets out of the way.
-A tool that silently downgraded you mid-task would be worse than no tool.
+Every figure has to survive one question: *where did that number come from?*
 
-It **never invents a number.** Token counts come from the transcript Claude Code
-writes itself. Dollars are arithmetic on those counts. When it cannot measure
-something honestly, it says nothing rather than estimating.
+### Step 1 — Read the receipt, never estimate it
 
-It **never repeats itself.** Tell it no once and that answer holds for the rest
-of the session. A nudge that fires every turn stops being read, which is the
-same failure as a warning that never fires at all.
+Claude Code writes a log of your session to disk. Every reply in it carries the
+real token counts, recorded by Claude Code itself. The hook opens that file and
+adds them up.
+
+Nothing is sampled, inferred, or rounded up from a guess.
+
+### Step 2 — Multiply by the published rate
+
+Prices are quoted per **million** tokens, which is why the raw numbers look
+strange at first. Say a reply used 1,200 tokens in and 800 out on Opus 5:
+
+| | rate per million | this reply |
+|---|---|---|
+| Reading in | $5 | 1,200 ÷ 1,000,000 × $5 = **$0.006** |
+| Writing out | $25 | 800 ÷ 1,000,000 × $25 = **$0.020** |
+| | | **$0.026** |
+
+Shown as `$0.03 this reply`.
+
+### Step 3 — Add the part nobody expects
+
+Claude re-reads the entire conversation every single turn. That re-reading is
+charged, at **10%** of the normal reading rate.
+
+Cheap per turn. Not cheap by turn sixty.
+
+This is why a long conversation can cost more than the work inside it, and it is
+the one cost no model choice fixes. When re-reading passes **85%** of a session's
+spend, the hook stops talking about models and tells you to `/clear` instead.
+
+That threshold is the difference between advice that helps and advice that
+misses the real problem.
+
+### Step 4 — Refuse to guess
+
+Fail-closed, deliberately:
+
+- **Unknown model → no dollar figure at all.** Not the nearest known rate.
+- **Prices match on exact version.** Opus 4.1 costs three times Opus 5. A loose
+  match on the word "opus" would under-report by two thirds and never say so.
+- **Nothing is reported at session start.** Fit can be judged from your first
+  message. Spend cannot: the real count is zero, and any figure would be
+  invention.
+
+A wrong number said confidently is worse than no number, because it gets
+believed and repeated.
+
+---
+
+## How the recommendation is made
+
+**Is it legitimate?** Partly, and the honest answer matters.
+
+The classifier is a keyword heuristic over the text of your prompt, not a model
+judging your work. It maps requests to three sizes:
+
+| Shape of the request | Expects |
+|---|---|
+| Rename, list, count, extract, reformat | Haiku |
+| Explain, write, review, debug | Sonnet |
+| Architect, refactor across files, weigh trade-offs | Opus |
+
+**It will sometimes be wrong.** A short question can hide a hard problem. So the
+whole thing is tuned toward silence: when the signal is weak it says nothing at
+all, because the two failures are not equal.
+
+> A wrong nudge costs trust every time it fires.
+> A missed nudge costs a few cents, once.
+
+**And it never acts on its own.**
+
+- It **never switches your model.** A tool that silently downgraded you mid-task
+  would be worse than no tool.
+- Your work **never waits.** The card appears, your answer follows immediately.
+- It **says a thing once.** Same mismatch next turn: silence.
+- **A no is permanent.** Decline once and that suggestion is gone for the
+  session.
+
+The bar for speaking is not "this is true." It is **"this is worth interrupting
+someone for."**
 
 ---
 
 ## Where it runs
 
-Claude Code, both the desktop app and the `claude` terminal CLI. They share one
+Claude Code — both the desktop app and the `claude` terminal CLI. They share one
 config directory, so installing once covers both.
 
-Not for the Anthropic API, and not for claude.ai — neither runs hooks.
+Not the API, not claude.ai. Neither runs hooks.
 
 Requires Python 3.8+. macOS and Linux; on Windows, WSL.
+
+---
 
 ## Install
 
@@ -112,10 +226,9 @@ python3 install.py install
 
 Then quit Claude Code completely and reopen it.
 
-The installer asks what to call you. Press Enter to skip; the hook works
-identically either way, or use `--no-name` to skip the question outright.
+The installer asks what to call you. Press Enter to skip, or pass `--no-name`.
 
-## Commands
+### Commands
 
 ```bash
 python3 install.py install      # set it up
@@ -125,26 +238,23 @@ python3 install.py uninstall    # remove it completely
 python3 install.py status       # which of those am I?
 ```
 
-**Stop is not uninstall.** Stop writes a single flag file that the hook checks
-before doing anything else. Everything stays in place; it just says nothing.
-Use it when you want quiet for an afternoon without reinstalling afterwards.
+**Stop is not uninstall.** Stop writes one flag file that the hook checks before
+it reads anything. Everything stays in place; it just goes quiet. For when you
+want silence this afternoon without reinstalling tomorrow.
 
-Every command is safe to run twice. Install replaces its own settings entries
-rather than stacking them, and uninstall leaves every other setting exactly as
-it was.
+Every command is safe to run twice.
 
----
-
-## What the installer touches
+### What it touches
 
 | File | Change |
 |---|---|
 | `~/.claude/hooks/cost-and-fit.py` | The hook. Copied here. |
-| `~/.claude/settings.json` | Two entries added: `UserPromptSubmit` and `Stop`. |
+| `~/.claude/settings.json` | Two entries: `UserPromptSubmit` and `Stop`. |
 | `~/.claude/CLAUDE.md` | One line, only if you gave a name. |
 
-Nothing else is read, written, or sent anywhere. The hook makes no network
-calls. Everything it knows comes from files already on your machine.
+Nothing else is read or written. **The hook makes no network calls.** Everything
+it knows comes from files already on your machine. Uninstall restores
+`settings.json` exactly as it was.
 
 If `CLAUDE_CONFIG_DIR` is set, all three paths follow it.
 
@@ -154,63 +264,43 @@ If `CLAUDE_CONFIG_DIR` is set, all three paths follow it.
 
 | Trigger | What you get |
 |---|---|
-| Model does not fit the task | One line, plus the `/model` command to switch |
-| A reply cost real money | Cost of that reply, and of the thread so far |
-| Most of the context is cache | A nudge to `/clear`, because no model choice fixes that |
+| Model does not fit the task | One line, plus the `/model` command |
+| A reply cost real money | That reply, and the thread so far |
+| Re-reading passed 85% of spend | A nudge to `/clear` |
 | You ask how pricing works | A plain explanation, on request only |
 | Everything is fine | Nothing |
 
-That last row is the common case.
-
----
-
-## Prices
-
-The rates live in one table at the top of `hooks/cost-and-fit.py`. They are
-Anthropic's published API list prices, used here as a yardstick — see the note
-above on what the dollar figures mean.
-
-Anthropic changes prices, so this table will eventually be wrong. Edit it when
-it is; it is a dozen lines.
-
-An unknown model produces no dollar figure at all, rather than a guessed one.
+**That last row is the common case.** A warning that fires every turn stops being
+read by the fourth one, and ignored is the same outcome as broken.
 
 ---
 
 ## Forking it
 
-The hook is one file, about 600 lines, heavily commented — most comments explain
-*why* a decision was made rather than what a line does. Places worth editing:
+One file, about 640 lines, heavily commented — most comments explain *why* a
+decision was made rather than what a line does. Worth editing:
 
-- **`RATES`** — the price table
-- **`shape_of()`** — how a prompt is classified into a work size
-- **the message lists** — the exact wording of every card
+- **`RATES`** — the price table. Anthropic changes prices; this will go stale.
+- **`shape_of()`** — how a request is sized.
+- **the message lists** — the exact wording of every card.
+
+`docs/how-it-works.md` has the design reasoning.
 
 The `CMFA-01.x` tags in the comments reference the internal rule set this was
-originally built against. They are kept because they mark which decisions were
-deliberate. Ignore them, or read them as design notes.
-
----
-
-## The honest limitation
-
-Classification is a heuristic over the text of your prompt. It will sometimes
-call a hard question easy. It is a nudge, not an oracle, and it is deliberately
-biased toward silence: a wrong nudge costs more trust than a missed one saves
-money.
+first built against. They are kept because they mark which decisions were
+deliberate. Read them as design notes, or ignore them.
 
 ---
 
 ## Contributing
 
-Issues and pull requests are welcome. Two things worth knowing before you open
-one:
+Issues and pull requests welcome. Two things worth knowing:
 
-**Prices go stale.** If the `RATES` table is wrong, that is a real bug and a
-one-line fix. Please do open an issue.
+**Prices go stale.** If `RATES` is wrong, that is a real bug and a one-line fix.
+Please open an issue.
 
 **Silence is the design.** Changes that make the hook speak more often need to
-argue for themselves. The bar is not "this information is true", it is "this is
+argue for themselves. The bar is not "this information is true," it is "this is
 worth interrupting someone for."
 
 ---
