@@ -6,7 +6,7 @@ A session can start with a difficult problem that needs Opus. Later, the work ma
 
 I built it because I kept finding Opus answering my rename-this-variable questions, and nothing in Claude Code would tell me it was time to switch.
 
-> Claude Code shows what you have used. Cost & Fit helps you decide what to do next.
+> Claude Code shows your usage. Cost & Fit helps you turn that information into a decision.
 
 ## Example
 
@@ -17,6 +17,16 @@ I built it because I kept finding Opus answering my rename-this-variable questio
 ```
 
 The hook never changes the model for you. It gives you information and leaves the decision with you.
+
+## The key distinction
+
+1. **Awareness is the information:** "This reply cost approximately this much."
+2. **Behavior is the intervention:** "This work fits Sonnet. Switch with this command."
+3. **Savings are the possible result, not the product's guaranteed output.**
+
+For included subscriber usage, the displayed amount is not a charge for each reply. The value is preserving usage capacity and reducing the chance of reaching a limit early.
+
+For API users, the same feedback can help identify avoidable usage and potential cost reduction. The amount shown is an estimate, not a promise of exact savings.
 
 ## Install
 
@@ -30,16 +40,6 @@ Quit Claude Code completely and reopen it.
 
 Requires Python 3.8+ and macOS or Linux.
 
-## The key distinction
-
-1. **Awareness is the information:** "This reply cost approximately this much."
-2. **Behavior is the intervention:** "This work fits Sonnet. Switch with this command."
-3. **Savings are the possible result, not the product's guaranteed output.**
-
-For included subscriber usage, the displayed amount is not a charge for each reply. The value is preserving usage capacity and reducing the chance of reaching a limit early.
-
-For API users, the same feedback can help identify avoidable usage and potential cost reduction. The amount shown is an estimate, not a promise of exact savings.
-
 ## What it helps you do
 
 ### Switch when the work changes
@@ -52,7 +52,7 @@ Cost & Fit compares the current request with the active model. When the model ma
 
 Claude Code records token usage and provides an estimated session cost. Cost & Fit uses those token counts to estimate the cost of the latest reply and the current thread.
 
-This gives you useful feedback while the session is still active, rather than only showing usage after the work is finished.
+This puts the estimate in context while you are still working.
 
 ### Know when the thread is the problem
 
