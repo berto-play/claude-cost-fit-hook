@@ -115,6 +115,14 @@ A few things are still being workshopped:
   stale when Anthropic changes pricing; today it's a hand edit.
 - **[The wording of the cards.](../../issues/3)** Nudges live or die on tone.
   If one reads wrong to you, that's worth hearing.
+- **[Switching the model automatically.](../../issues/4)** Hooks can't touch
+  the running model mid-session yet. Worth revisiting if that changes.
+- **Guaranteeing savings.** Depends on auto-switching, so it waits on the
+  item above too.
+- **Always knowing the best model.** Not fully solvable — difficulty isn't
+  knowable before the work happens. Measuring the reply (see above) gets closer.
+- **Exact subscription billing.** Anthropic doesn't publish a per-reply
+  billing API. Nothing to read yet, so nothing to build.
 
 If something feels off, or you discover how to make it better,
 [open an issue](../../issues) and share your thinking. Feedback on where it
