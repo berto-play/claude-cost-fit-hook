@@ -80,17 +80,17 @@ Starting with Sonnet gives the hook room to suggest Opus when the work becomes m
 | Pro or Max subscriber | Avoid unnecessary use of limited usage capacity | Your allowance may last longer |
 | Long-session user | Notice when the thread itself is becoming expensive | You know when `/clear` helps more than switching models |
 
-## What it does not do
+## Good to know before you install
 
-- It does not change the model automatically.
-- It does not guarantee savings.
-- It does not show exact subscription billing.
+- The model switch is always yours to make; the hook only ever suggests.
+- The dollar figures are estimates for awareness, not your bill, and savings
+  depend on what you do with the nudges.
 - It reads your request with a simple heuristic, not a model. A short question
-  can hide a hard problem, so it can misjudge. That is why it only ever
-  suggests, and why it says nothing when the signal is weak.
+  can hide a hard problem, so it can misjudge. That is why it only suggests,
+  and why it says nothing when the signal is weak.
 
-Silence is not on this list, because silence is the product working: no card
-means the model fits the work.
+And if you install it and hear nothing for a while: silence is the product
+working. No card means the model fits the work.
 
 ## Commands
 
@@ -101,5 +101,25 @@ python3 install.py start        # resume the hook
 python3 install.py model        # set the default model
 python3 install.py uninstall    # remove the hook
 ```
+
+## Still on the workbench
+
+This is a fun project, more shop than showroom. I built it because I needed it,
+and I'm sharing it for anyone who might need something like it too. A few
+things are still being workshopped:
+
+- **A smarter judge of task size.** Today it reads keywords. The better version
+  measures the reply after it lands — a short answer with no tools was small
+  work as a matter of fact, not a guess. Designed, not built.
+- **Prices that keep themselves fresh.** The rate table goes stale whenever
+  Anthropic changes pricing; right now the fix is a hand edit.
+- **The wording of the cards.** Nudges live or die on tone. If one reads wrong
+  to you, that's worth hearing.
+
+If you try it and something feels off, or you can see how to make it better,
+[open an issue](../../issues) and share your thinking. Feedback about where it
+was wrong is the most useful thing this project can receive.
+
+---
 
 MIT. See [LICENSE](LICENSE).
