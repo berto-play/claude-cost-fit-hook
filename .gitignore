@@ -2,4 +2,4 @@ __pycache__/
 *.pyc
 .DS_Store
 .local/
-release.sh
+release-hook-to-github.sh
