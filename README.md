@@ -109,13 +109,12 @@ model fits.
 
 A few things are still being workshopped:
 
-- **A smarter judge of task size.** Today it reads keywords. The better version
-  measures the reply after it lands — a short answer with no tools was small
-  work as a matter of fact, not a guess. Designed, not built.
-- **Prices that keep themselves fresh.** The rate table goes stale whenever
-  Anthropic changes pricing; right now the fix is a hand edit.
-- **The wording of the cards.** Nudges live or die on tone. If one reads wrong
-  to you, that's worth hearing.
+- **[A smarter judge of task size.](../../issues/1)** Today it guesses from
+  keywords; next it measures the reply itself. (Designed, not built.)
+- **[Prices that keep themselves fresh.](../../issues/2)** The rate table goes
+  stale when Anthropic changes pricing; today it's a hand edit.
+- **[The wording of the cards.](../../issues/3)** Nudges live or die on tone.
+  If one reads wrong to you, that's worth hearing.
 
 If something feels off, or you discover how to make it better,
 [open an issue](../../issues) and share your thinking. Feedback on where it
