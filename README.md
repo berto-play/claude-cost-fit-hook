@@ -84,9 +84,13 @@ Starting with Sonnet gives the hook room to suggest Opus when the work becomes m
 
 - It does not change the model automatically.
 - It does not guarantee savings.
-- It does not always know which model is best.
 - It does not show exact subscription billing.
-- It stays silent when the current model fits the work.
+- It reads your request with a simple heuristic, not a model. A short question
+  can hide a hard problem, so it can misjudge. That is why it only ever
+  suggests, and why it says nothing when the signal is weak.
+
+Silence is not on this list, because silence is the product working: no card
+means the model fits the work.
 
 ## Commands
 
