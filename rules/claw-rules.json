@@ -1,0 +1,155 @@
+{
+  "_": "Claw Bot's rulebook. This file is a COPY of the rules built into hooks/claw-bot.py. Put it at ~/.claude/clawbot/rules.json and it replaces them entirely: what is not in this file is not enforced.",
+  "_fields": {
+    "id": "short name, shown when the rule fires",
+    "level": "'always' = on in both modes. 'admin' = stands down in build mode.",
+    "action": "'deny' refuses the call. 'ask' puts it to you for a yes or no.",
+    "tools": "which tools the rule inspects. ['*'] means every tool.",
+    "match": "regex over the command (Bash) or the file path (Edit/Write/Read)",
+    "paths": "glob patterns, matched against the full path and the bare filename",
+    "special": "a named check built into the hook, for what a regex cannot see",
+    "why": "shown to you and to Claude when the rule fires. Write it plainly.",
+    "enabled": "set false to switch one rule off without deleting it"
+  },
+  "rules": [
+    {
+      "id": "no-force-push",
+      "level": "always",
+      "action": "deny",
+      "tools": [
+        "Bash"
+      ],
+      "match": "\\bgit\\s+push\\b[^\\n;|&]*(--force\\b|--force-with-lease\\b|\\s-f\\b)",
+      "why": "Force-push rewrites history other people have already pulled. If the branch really needs rewriting, do it yourself."
+    },
+    {
+      "id": "no-secret-writes",
+      "level": "always",
+      "action": "deny",
+      "tools": [
+        "Edit",
+        "Write",
+        "NotebookEdit"
+      ],
+      "paths": [
+        "**/.env",
+        ".env",
+        "**/.env.*",
+        ".env.*",
+        "**/*.pem",
+        "*.pem",
+        "**/id_rsa*",
+        "id_rsa*",
+        "**/id_ed25519*",
+        "id_ed25519*",
+        "**/credentials",
+        "**/.npmrc",
+        "**/.netrc"
+      ],
+      "why": "That file holds secrets. Reading it is one thing; rewriting it can lock you out of your own accounts."
+    },
+    {
+      "id": "no-secret-dumps",
+      "level": "always",
+      "action": "deny",
+      "tools": [
+        "Bash"
+      ],
+      "match": "\\b(cat|less|more|head|tail|bat|xxd|base64)\\b[^\\n;|&]*(\\.ssh/id_|\\.aws/credentials|\\.netrc|\\.npmrc|\\.env(\\s|$|\\.)|secrets?\\.(json|ya?ml|env))",
+      "why": "Printing a secret puts it in the transcript, which is a file on disk and a copy in the model's context. It does not come back out."
+    },
+    {
+      "id": "no-wipe",
+      "level": "always",
+      "action": "deny",
+      "tools": [
+        "Bash"
+      ],
+      "match": "\\brm\\s+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[rR])\\s+(/|~|\\$HOME|/\\*|~/\\*|\\.\\s*$|\\*\\s*$)",
+      "why": "That deletes your home directory or your root. There is no version of this task that needs it."
+    },
+    {
+      "id": "no-drop",
+      "level": "always",
+      "action": "deny",
+      "tools": [
+        "Bash",
+        "*"
+      ],
+      "match": "\\b(DROP\\s+(DATABASE|TABLE|SCHEMA)|TRUNCATE\\s+TABLE)\\b",
+      "why": "Dropping or truncating a table destroys data that no undo reaches. Take a dump first, then run it by hand."
+    },
+    {
+      "id": "no-push-to-main",
+      "level": "always",
+      "action": "ask",
+      "tools": [
+        "Bash"
+      ],
+      "special": "push_touches_main",
+      "why": "This looks like a push straight to main. Branch first unless you meant it."
+    },
+    {
+      "id": "no-history-rewrite",
+      "level": "always",
+      "action": "ask",
+      "tools": [
+        "Bash"
+      ],
+      "match": "\\bgit\\s+(rebase\\b|commit\\b[^\\n;|&]*--amend\\b|reset\\b[^\\n;|&]*--hard\\b|filter-branch\\b)",
+      "why": "This rewrites or discards commits. Fine when you meant it, expensive when you did not."
+    },
+    {
+      "id": "no-ship-to-prod",
+      "level": "always",
+      "action": "ask",
+      "tools": [
+        "Bash"
+      ],
+      "match": "(\\bnpm\\s+publish\\b|\\byarn\\s+publish\\b|\\bpnpm\\s+publish\\b|\\bgh\\s+release\\s+create\\b|\\bvercel\\b[^\\n;|&]*--prod\\b|\\bnetlify\\s+deploy\\b[^\\n;|&]*--prod\\b|\\bfly\\s+deploy\\b|\\beas\\s+submit\\b)",
+      "why": "This publishes to somewhere real, where other people can see it. Shipping is your call, not mine."
+    },
+    {
+      "id": "no-sudo",
+      "level": "admin",
+      "action": "deny",
+      "tools": [
+        "Bash"
+      ],
+      "match": "(^|[;&|]\\s*)sudo\\b",
+      "why": "Admin mode does not run anything as root. Switch to build mode if you genuinely need this."
+    },
+    {
+      "id": "no-global-install",
+      "level": "admin",
+      "action": "ask",
+      "tools": [
+        "Bash"
+      ],
+      "match": "(\\bnpm\\s+(i|install)\\b[^\\n;|&]*\\s-g\\b|\\bnpm\\s+(i|install)\\b[^\\n;|&]*--global\\b|\\bbrew\\s+(install|upgrade)\\b|\\bpip3?\\s+install\\b(?![^\\n;|&]*(-r\\b|--requirement))|\\bcargo\\s+install\\b|\\bgo\\s+install\\b)",
+      "why": "This changes the machine, not the project, and it outlives the session that asked for it."
+    },
+    {
+      "id": "no-writes-outside-project",
+      "level": "admin",
+      "action": "ask",
+      "tools": [
+        "Edit",
+        "Write",
+        "NotebookEdit"
+      ],
+      "special": "path_outside_cwd",
+      "why": "That path is outside the folder we are working in. Usually a mistake, occasionally on purpose."
+    },
+    {
+      "id": "no-bulk-upload",
+      "level": "admin",
+      "action": "ask",
+      "tools": [
+        "Bash"
+      ],
+      "match": "\\b(curl|wget|http|httpie)\\b[^\\n;|&]*(-d\\s*@|--data-binary\\s*@|--upload-file|-T\\s|-F\\s*[\\\"']?[a-z_]+=@)",
+      "why": "This sends a local file to an outside server. Once it leaves, you cannot take it back."
+    }
+  ]
+}

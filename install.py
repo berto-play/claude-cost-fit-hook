@@ -11,6 +11,7 @@ its own entries and never duplicates them.
     python3 install.py uninstall    remove it completely
     python3 install.py status       say which of those it currently is
     python3 install.py model        set the model Claude Code starts on
+    python3 install.py claw         Claw Bot: the rules that block tool calls
 
 `install` is the default, so bare `python3 install.py` still works. Add
 --no-name to skip the name question.
@@ -30,6 +31,15 @@ HOOK_NAME = "cost-and-fit.py"
 TRIGGERS = ("UserPromptSubmit", "Stop")
 REPO = Path(__file__).resolve().parent
 SOURCE = REPO / "hooks" / HOOK_NAME
+
+# Claw Bot is a second, independent hook that happens to share this installer.
+# Separate name, separate triggers, separate state folder: installing or removing
+# one never touches the other.
+CLAW_NAME = "claw-bot.py"
+CLAW_TRIGGERS = ("PreToolUse", "UserPromptSubmit", "SessionStart")
+CLAW_SOURCE = REPO / "hooks" / CLAW_NAME
+CLAW_RULES_SOURCE = REPO / "rules" / "claw-rules.json"
+CLAW_MODES = ("admin", "build")
 
 
 def claude_dir():
@@ -54,35 +64,39 @@ def load_settings(path):
         sys.exit(1)
 
 
-def strip_ours(entries, command):
-    """Drop this hook's own entries from one trigger's list, keeping everything
-    else exactly as it was."""
+def strip_ours(entries, hook_name=HOOK_NAME):
+    """Drop one hook's own entries from a trigger's list, keeping everything
+    else exactly as it was. Matched on filename, so the two hooks in this repo
+    never strip each other."""
     kept = []
     for entry in entries:
         inner = entry.get("hooks", []) if isinstance(entry, dict) else []
-        if any(HOOK_NAME in h.get("command", "") for h in inner if isinstance(h, dict)):
+        if any(hook_name in h.get("command", "") for h in inner if isinstance(h, dict)):
             continue
         kept.append(entry)
     return kept
 
 
-def register(settings, command):
+def register(settings, command, triggers=TRIGGERS, hook_name=HOOK_NAME):
     hooks = settings.setdefault("hooks", {})
-    for trigger in TRIGGERS:
+    for trigger in triggers:
         existing = hooks.get(trigger, [])
         if not isinstance(existing, list):
             existing = []
-        cleaned = strip_ours(existing, command)
+        cleaned = strip_ours(existing, hook_name)
+        # No matcher: on PreToolUse an absent matcher means every tool, which is
+        # what Claw Bot needs. Narrowing it here would silently exempt whichever
+        # tool the matcher forgot.
         cleaned.append({"hooks": [{"type": "command", "command": command}]})
         hooks[trigger] = cleaned
     return settings
 
 
-def unregister(settings, command):
+def unregister(settings, command, triggers=TRIGGERS, hook_name=HOOK_NAME):
     hooks = settings.get("hooks", {})
-    for trigger in TRIGGERS:
+    for trigger in triggers:
         if trigger in hooks and isinstance(hooks[trigger], list):
-            cleaned = strip_ours(hooks[trigger], command)
+            cleaned = strip_ours(hooks[trigger], hook_name)
             if cleaned:
                 hooks[trigger] = cleaned
             else:
@@ -127,14 +141,14 @@ def pause_flag(cfg):
     return cfg / "cmfa" / "paused"
 
 
-def is_installed(cfg, settings_path):
-    if not (cfg / "hooks" / HOOK_NAME).exists():
+def is_installed(cfg, settings_path, hook_name=HOOK_NAME, triggers=TRIGGERS):
+    if not (cfg / "hooks" / hook_name).exists():
         return False
     hooks = load_settings(settings_path).get("hooks", {})
-    for trigger in TRIGGERS:
+    for trigger in triggers:
         for entry in hooks.get(trigger, []) or []:
             inner = entry.get("hooks", []) if isinstance(entry, dict) else []
-            if any(HOOK_NAME in h.get("command", "") for h in inner if isinstance(h, dict)):
+            if any(hook_name in h.get("command", "") for h in inner if isinstance(h, dict)):
                 return True
     return False
 
@@ -248,6 +262,219 @@ def cmd_uninstall(cfg, settings_path, dest, command):
     return 0
 
 
+# ── Claw Bot ─────────────────────────────────────────────────────────────────
+# A second hook with a different job. The cost hook reports and never acts;
+# Claw Bot acts and never reports. They share an installer and nothing else.
+
+def claw_dir(cfg):
+    return cfg / "clawbot"
+
+
+def claw_mode(cfg):
+    """Admin unless the state file clearly says otherwise. A missing, empty, or
+    unreadable file means admin, matching the hook: when the mode cannot be
+    established, the strict one is the safe answer."""
+    try:
+        d = json.loads((claw_dir(cfg) / "state.json").read_text(encoding="utf-8"))
+        m = d.get("mode")
+        return m if m in CLAW_MODES else "admin"
+    except Exception:
+        return "admin"
+
+
+def claw_set_mode(cfg, mode):
+    d = claw_dir(cfg)
+    d.mkdir(parents=True, exist_ok=True)
+    state = {}
+    try:
+        state = json.loads((d / "state.json").read_text(encoding="utf-8")) or {}
+    except Exception:
+        pass
+    state["mode"] = mode
+    (d / "state.json").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+
+def claw_rules(cfg):
+    """(rules, where). The user's copy wins when it parses; otherwise the copy
+    shipped in this repo, which is what the hook falls back to as well."""
+    user = claw_dir(cfg) / "rules.json"
+    for path, where in ((user, str(user)), (CLAW_RULES_SOURCE, "built-in")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            rules = data.get("rules") if isinstance(data, dict) else data
+            if isinstance(rules, list) and rules:
+                return rules, where
+        except Exception:
+            continue
+    return [], "none found"
+
+
+def claw_live(rules, mode):
+    return [r for r in rules
+            if r.get("enabled") is not False
+            and (mode == "admin" or r.get("level", "admin") == "always")]
+
+
+def claw_pause_flag(cfg):
+    return claw_dir(cfg) / "paused"
+
+
+def cmd_claw(cfg, settings_path, words, argv=()):
+    """`words` is argv with flags filtered out, `argv` is the whole thing.
+
+    Both are needed: `claw mode build` reads a positional, `claw rules --copy`
+    reads a flag, and main() strips flags out of `words` before this is called.
+    Reading only `words` silently ignored --copy and printed the list instead.
+    """
+    sub = words[1].lower() if len(words) > 1 else "status"
+    dest = cfg / "hooks" / CLAW_NAME
+    command = f"python3 {dest}"
+
+    if sub == "install":
+        if not CLAW_SOURCE.exists():
+            print(f"\n  Cannot find {CLAW_SOURCE}")
+            print("  Run this from inside the repo folder.\n")
+            return 1
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(CLAW_SOURCE, dest)
+        os.chmod(dest, 0o755)
+        settings = load_settings(settings_path)
+        register(settings, command, CLAW_TRIGGERS, CLAW_NAME)
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+        flag = claw_pause_flag(cfg)
+        if flag.exists():
+            flag.unlink()
+        mode = claw_mode(cfg)
+        rules, _ = claw_rules(cfg)
+        print()
+        print("  Claw Bot installed.")
+        print(f"    hook      {dest}")
+        print(f"    triggers  {', '.join(CLAW_TRIGGERS)}")
+        print(f"    mode      {mode}   ({len(claw_live(rules, mode))} rules live)")
+        print()
+        print("  Quit Claude Code completely and reopen it.")
+        print()
+        print("  From inside Claude Code, type these as a whole message:")
+        print("    claw admin    strict: every rule on")
+        print("    claw build    loose: only the hard limits")
+        print("    claw rules    list what is live right now")
+        print()
+        return 0
+
+    if sub == "uninstall":
+        settings = load_settings(settings_path)
+        unregister(settings, command, CLAW_TRIGGERS, CLAW_NAME)
+        settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+        if dest.exists():
+            dest.unlink()
+        # The mode, the rulebook and the log stay. Someone reinstalling next week
+        # wants their edits back, and nothing here is large enough to be litter.
+        print(f"\n  Claw Bot removed. Your rules and log are still in {claw_dir(cfg)}.")
+        print("  Restart Claude Code to finish.\n")
+        return 0
+
+    if sub == "stop":
+        flag = claw_pause_flag(cfg)
+        flag.parent.mkdir(parents=True, exist_ok=True)
+        flag.touch()
+        print("\n  Claw Bot paused. Every rule is off until you start it again.")
+        print("  Resume with:  python3 install.py claw start\n")
+        return 0
+
+    if sub == "start":
+        flag = claw_pause_flag(cfg)
+        if flag.exists():
+            flag.unlink()
+            print("\n  Claw Bot resumed.\n")
+        else:
+            print("\n  Claw Bot is already running.\n")
+        return 0
+
+    if sub == "mode":
+        want = words[2].lower() if len(words) > 2 else None
+        if want not in CLAW_MODES:
+            print(f"\n  Usage: python3 install.py claw mode <{' | '.join(CLAW_MODES)}>\n")
+            return 1
+        claw_set_mode(cfg, want)
+        rules, _ = claw_rules(cfg)
+        print(f"\n  Claw Bot is now in {want} mode. "
+              f"{len(claw_live(rules, want))} rules live.")
+        print("  Takes effect on the next tool call; no restart needed.\n")
+        return 0
+
+    if sub == "rules":
+        mode = claw_mode(cfg)
+        rules, where = claw_rules(cfg)
+        wants_copy = ("--copy" in argv
+                      or (len(words) > 2 and words[2].lower() in ("copy", "mine")))
+        if wants_copy:
+            target = claw_dir(cfg) / "rules.json"
+            if target.exists():
+                print(f"\n  You already have your own copy: {target}")
+                print("  Delete it to go back to the built-in rules.\n")
+                return 0
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(CLAW_RULES_SOURCE, target)
+            print(f"\n  Your copy: {target}")
+            print("  Edit it freely. What is not in that file is not enforced,")
+            print("  so it replaces the built-in rules rather than adding to them.\n")
+            return 0
+        live = claw_live(rules, mode)
+        print(f"\n  Claw Bot · {mode} mode · {len(live)} of {len(rules)} rules live")
+        print(f"  Rulebook: {where}\n")
+        for r in rules:
+            on = r in live
+            mark = "  " if on else "· "
+            act = "refuses" if r.get("action", "deny") == "deny" else "asks   "
+            why = (r.get("why") or "").split(".")[0]
+            print(f"  {mark}{act}  {r.get('id'):<26} {why}")
+        if len(live) != len(rules):
+            print("\n  · = stands down in this mode")
+        print(f"\n  Make your own: python3 install.py claw rules --copy\n")
+        return 0
+
+    if sub == "log":
+        path = claw_dir(cfg) / "denied.log"
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()[-20:]
+        except Exception:
+            lines = []
+        if not lines:
+            print("\n  Claw Bot has not stopped anything yet.\n")
+            return 0
+        print("\n  Last 20 stops\n")
+        for ln in lines:
+            try:
+                e = json.loads(ln)
+            except Exception:
+                continue
+            print(f"  {e.get('at')}  {e.get('action'):<4} {e.get('rule'):<26} "
+                  f"{(e.get('subject') or '')[:50]}")
+        print()
+        return 0
+
+    if sub == "status":
+        installed = is_installed(cfg, settings_path, CLAW_NAME, CLAW_TRIGGERS)
+        mode = claw_mode(cfg)
+        rules, where = claw_rules(cfg)
+        print()
+        if not installed:
+            print("  Claw Bot: not installed.  →  python3 install.py claw install")
+        elif claw_pause_flag(cfg).exists():
+            print("  Claw Bot: installed, paused.  →  python3 install.py claw start")
+        else:
+            print(f"  Claw Bot: running in {mode} mode, "
+                  f"{len(claw_live(rules, mode))} rules live.")
+            print(f"  Rulebook: {where}")
+        print()
+        return 0
+
+    print(f"\n  Unknown: claw {sub}")
+    print("  Use: install · uninstall · status · mode · rules · log · stop · start\n")
+    return 1
+
+
 def main():
     argv = sys.argv[1:]
     args = set(argv)
@@ -263,11 +490,13 @@ def main():
     dest = cfg / "hooks" / HOOK_NAME
     command = f"python3 {dest}"
 
-    if cmd not in ("install", "stop", "start", "uninstall", "status", "model"):
+    if cmd not in ("install", "stop", "start", "uninstall", "status", "model", "claw"):
         print(f"\n  Unknown command: {cmd}")
-        print("  Use: install · stop · start · uninstall · status · model\n")
+        print("  Use: install · stop · start · uninstall · status · model · claw\n")
         return 1
 
+    if cmd == "claw":
+        return cmd_claw(cfg, settings_path, words, argv)
     if cmd == "stop":
         return cmd_stop(cfg)
     if cmd == "start":
@@ -315,6 +544,7 @@ def main():
     print("  feature.")
     print()
     print("  stop · start · uninstall · status · model  →  python3 install.py <command>")
+    print("  Claw Bot, the rules that block tool calls  →  python3 install.py claw")
 
     # Offered here rather than buried in the docs: the hook nudges you when a
     # session drifts, but a high default means that drift starts every day.
