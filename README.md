@@ -2,6 +2,8 @@
 
 A hook for Claude Code that tells you when the model you're running no longer fits the work you're doing.
 
+*The same repo also ships [Claw Bot](#claw-bot): rules that refuse tool calls before they run. Two hooks, installed separately, independent of each other.*
+
 A session can start with a difficult problem that needs Opus. Later, the work may become simple, but Opus is still running. Cost & Fit looks for that mismatch and shows a short warning with a copyable command when switching models may help.
 
 I built it because I kept finding Opus answering my rename-this-variable questions, and nothing in Claude Code would tell me it was time to switch.
@@ -89,6 +91,115 @@ python3 install.py start        # resume the hook
 python3 install.py model        # set the default model
 python3 install.py uninstall    # remove the hook
 ```
+
+## Claw Bot
+
+A second hook in the same repo, with the opposite job. Cost & Fit reports and
+never acts. Claw Bot acts and never reports: it refuses tool calls that break
+your rules, before they run.
+
+The point is that the rules are not advice. Rules written into `CLAUDE.md` get
+talked past by an assistant halfway through a task, and you find out from the git
+log. A rule inside a `PreToolUse` hook cannot be talked past, because the model
+is not the one making the decision.
+
+```text
+🦞 CLAW BOT · admin mode · rule `no-force-push`
+Force-push rewrites history other people have already pulled.
+If the branch really needs rewriting, do it yourself.
+```
+
+### Two modes
+
+**admin** is strict: all twelve rules on. For live systems, other people's
+repos, and anything you cannot undo.
+
+**build** is loose: only the hard limits stay on, and Claude is told to take the
+ambitious reading of what you asked rather than the safe one. For a sandbox or a
+first draft.
+
+Type either one as a whole message inside Claude Code:
+
+```text
+claw admin     strict: every rule on
+claw build     loose: only the hard limits
+claw rules     list what is live right now
+claw status    which mode, how many rules
+claw log       what got stopped recently
+```
+
+Admin is the default, and it is what a missing or unreadable state file falls
+back to. When Claw Bot cannot tell which mode it is in, it picks the one that
+stops more.
+
+### What it stops
+
+Five things are refused outright, in both modes: force-push, writing to `.env`
+or a private key, printing a secret into the transcript, `rm -rf` on your home
+or your root, and dropping or truncating a table.
+
+Three more put the decision to you rather than refusing: pushing onto `main`,
+rewriting git history, and publishing to somewhere real.
+
+Four only apply in admin mode: `sudo`, installing packages onto the machine
+rather than the project, writing outside the project folder, and uploading a
+local file to an outside server.
+
+See all twelve, and which are live right now:
+
+```bash
+python3 install.py claw rules
+```
+
+### Your own rules
+
+```bash
+python3 install.py claw rules --copy
+```
+
+That writes `~/.claude/clawbot/rules.json` for you to edit. It **replaces** the
+built-in rules rather than adding to them: what is not in your file is not
+enforced. Delete the file to go back to the defaults.
+
+### Install
+
+```bash
+python3 install.py claw install
+```
+
+Quit Claude Code completely and reopen it. The two hooks are independent:
+installing or removing one never touches the other.
+
+```bash
+python3 install.py claw status      # which mode, how many rules
+python3 install.py claw mode build  # switch from outside Claude Code
+python3 install.py claw stop        # every rule off, stays installed
+python3 install.py claw start       # rules back on
+python3 install.py claw uninstall   # remove it, keep your rules and log
+```
+
+### Honest about the limits
+
+The rules are pattern matching over commands and file paths, not understanding.
+A command written an unusual way can slip past one, so this narrows the blast
+radius rather than sealing it. It is a seatbelt, not a vault.
+
+Build mode's push toward work that does not exist yet is a standing instruction,
+not a guarantee. It changes what gets attempted. It cannot promise the result is
+new.
+
+If the hook itself crashes, the tool call is allowed through. A bug in this file
+blocking every tool in every session would be the worse failure and the harder
+one to diagnose. The reasoning behind that split, and the rest of the design, is
+in [docs/claw-bot.md](docs/claw-bot.md).
+
+```bash
+python3 tests/test_claw_bot.py
+```
+
+Half those tests are commands that must be **left alone**. That half is the one
+that matters: a rulebook that stops ordinary work gets uninstalled within a day,
+and then it protects nothing.
 
 ## Still on the workbench
 
